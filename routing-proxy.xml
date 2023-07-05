@@ -1,0 +1,313 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!DOCTYPE rfc SYSTEM "rfc2629-xhtml.ent">
+
+<?rfc toc="yes"?>
+<?rfc tocompact="yes"?>
+<?rfc tocdepth="3"?>
+<?rfc tocindent="yes"?>
+<?rfc symrefs="yes"?>
+<?rfc sortrefs="yes"?>
+<?rfc comments="yes"?>
+<?rfc inline="yes"?>
+<?rfc compact="no"?>
+<?rfc subcompact="no"?>
+<?rfc authorship="yes"?>
+<?rfc tocappendix="yes"?>
+<rfc  xmlns:xi="http://www.w3.org/2001/XInclude" category="info" ipr='trust200902' tocInclude="true"  obsoletes=""
+updates="" consensus="true" submissionType="IETF" xml:lang="en" version="3" docName="draft-levy-abegnoli-6man-stateless-nd-proxy-00" >
+
+<front>
+  <title abbrev="IPv6 ND Routing Proxy">IPv6 Neighbor Discovery Routing Proxy</title>
+
+   <author initials='E' surname='Levy-Abegnoli' fullname='Eric Levy-Abegnoli'>
+      <organization abbrev='Cisco Systems'>Cisco Systems, Inc</organization>
+      <address>
+         <postal>
+            <street>Building D</street>
+            <street>45 Allee des Ormes - BP1200 </street>
+            <city>Mougins - Sophia Antipolis</city>
+            <code>06254</code>
+          <country>France</country>
+         </postal>
+         <phone>+33 497 23 26 20</phone>
+         <email>elevyabe@cisco.com</email>
+      </address>
+   </author>
+   <author initials='P' surname='Thubert' fullname='Pascal Thubert'>
+      <organization abbrev='Cisco Systems'>Cisco Systems, Inc</organization>
+      <address>
+         <postal>
+            <street>Building D</street>
+            <street>45 Allee des Ormes - BP1200 </street>
+            <city>Mougins - Sophia Antipolis</city>
+            <code>06254</code>
+          <country>France</country>
+         </postal>
+         <phone>+33 497 23 26 34</phone>
+         <email>pthubert@cisco.com</email>
+      </address>
+   </author>
+   <date/>
+   <area>Internet Area</area>
+   <workgroup>6MAN</workgroup>
+   <keyword>Draft</keyword>
+   <abstract>
+
+   <t>
+   A legacy or incorrect host implementation may assume an on-link prefix on an
+   interface where it owns an address that matches the prefix. This mistake may
+   prevent connectivity on networks where this is not the case, e.g., when the
+   physical or logical connectivity of the network does not allow transitive
+   connectivity, in which case all the traffic should transit via the router.
+   This document proposes a stateless routing proxy operation in the router to
+   force a "not-on-link" behavior on the misbehaving host and attract all the
+   packets to the router.
+     </t>
+   </abstract>
+</front>
+
+<middle>
+
+  <section anchor="introduction"> <name>Introduction</name>
+
+     <t>
+     Section 5.2 of <xref target="RFC4861">"IPv6 Neighbor Discovery (ND)"</xref>
+     describes a conceptual sending algorithm for the host stack, which operation
+     differs whether a destination is on-link or off-link, affecting the selection
+     of the next hop to which to forward a packet. In the former case, the host
+     lookups the address up over the link, whereas in the latter, the host simply
+     forwards to the default router. While on-link determination is
+     explicitly specified through a variety of criteria, there is no signaling
+     for off-link and a prefix that not known as being on-link may still be
+     on-link or off-link, so the host behavior is not clearly defined.
+     In particular, a router on the link can refrain from announcing that a
+     prefix is on-link, but it has no authoritative way to declare that the
+     prefix is off-link, and whether to adopt an off-link or an on-link behavior
+     by default is left to the host decision and stack implementation.
+     </t>
+     <t>
+     This is problematic in the case of non-broacast multi-access (NBMA) links
+     that was accepted to be left "for further study" at the time of
+     <xref target="RFC4861"/>. <xref target="I-D.ietf-6man-ipv6-over-wireless">
+     "Architecture and Framework for IPv6 over Non-Broadcast Access"</xref>
+     presents a number of NBMA situations, including wireless access and meshes,
+     Low-Power Lossy Networks, and multi-site overlays, where the  physical or
+     logical characteristics of the subnet mandates an off-link behavior by the
+     hosts, even when the destination is in the same subnet as the sender.
+     In these cases, a host that fails to adopt the off-link behavior is likely
+     to attempt link-layer address resolution and fail to forward traffic via a
+     router.
+     </t>
+     <t>
+     <xref target="RFC4943"/> provides historical and background
+     information behind the removal of the "on-link assumption" from the
+     conceptual host sending algorithm defined in <xref target="RFC4861"/>, in
+     particular in the case whether the host is not aware of a default router.
+     On that basis, <xref target="RFC5942"/> clarifies the relationship between
+     subnet and link and update <xref target="RFC4861"/> to make off-link
+     behavior the default and mandate on-link behavior to be driven by explicit
+     means.
+     </t>
+     <t>
+     However, legacy or non-complient stack implementations may continue to this day to
+     assume that a prefix is on-link by default, leading to connectivity
+     failures.
+     This document proposes a stateless ND routing-proxy operation
+     (see section 4.1 of <xref target="I-D.ietf-6man-ipv6-over-wireless"/>)
+     as a stateless variation of the ND routing-proxy function defined
+     in section 2.2 of <xref target="RFC8929"/>.
+     enabling the router to obtain an off-link behavior from such stacks,
+     by forcing hosts that attempt a link-layer address resolution by default
+     to forward all their traffic to their default router.
+     The routing proxy function is co-located with the Router, listens to ND messages sent on the link and, when appropriate, responds with NA announcing self as the owner of the address to attract the traffic.
+
+ </t>
+  </section > <!--Introduction-->
+
+<section anchor='acronyms' > <name>Acronyms</name>
+    <t> This document uses the following abbreviations:
+    </t>
+       <dl spacing='compact'>
+       <dt>DAD:</dt><dd>Duplicate address Detection </dd>
+       <dt>LLN:</dt><dd>Low-Power and Lossy Network </dd>
+       <dt>LLA:</dt><dd>link-local address </dd>
+       <dt>MAC:</dt><dd>Medium Access Control</dd>
+       <dt>MLSN:</dt><dd>Multi-link Subnet </dd>
+       <dt>MLD:</dt><dd> multicast Listener Discovery </dd>
+       <dt>NA:</dt><dd> Neighbor Advertisement (message)</dd>
+       <dt>NBMA:</dt><dd> Non-Broadcast Multi-Access </dd>
+       <dt>NCE:</dt><dd> Neighbor Cache Entry  </dd>
+       <dt>ND:</dt><dd> Neighbor Discovery (protocol)</dd>
+       <dt>NDP:</dt><dd> Neighbor Discovery Protocol </dd>
+       <dt>NUD:</dt><dd> Neighbor Unreachability Detection</dd>
+       <dt>NS:</dt><dd> Neighbor Solicitation (message) </dd>
+       <dt>P2P:</dt><dd> Point-to-Point </dd>
+       <dt>P2MP:</dt><dd> Point-to-Multipoint </dd>
+       <dt>RA:</dt><dd> Router Advertisement (message) </dd>
+       <dt>RS:</dt><dd> Router Solicitation (message) </dd>
+       <dt>ULP:</dt><dd> Upper-Layer Protocol  </dd>
+       <dt>VLAN:</dt><dd>Virtual Local Area Network</dd>
+       <dt>VxLAN:</dt><dd>Virtual Extensible LAN</dd>
+       <dt>WAN:</dt><dd>Wide Area Network </dd>
+       <dt>WLAN:</dt><dd>Wireless Local Area Network </dd>
+       <dt>WPAN:</dt><dd>Wireless Personal Area Network </dd>
+       </dl>
+
+     </section><!-- Acronyms -->
+  <section anchor="operations"> <name>Operations</name>
+
+  <t>
+    Assuming that two hosts sharing a common prefix can only communicate with each other via the router, due to physical or logical
+    network constrains, as shown in <xref target='topology'/>, the first action for the router would be to clear the L-flag for this
+    prefix.
+    However, it has been observed that some hosts implementations will continue to try to resolve destination within that prefix and as a
+    consequence, will be unable to establish connectivity with each other.
+  </t>
+
+  <t>
+    Note that this document does not cover the use cases where the hosts are not isolated from each other, and continue to run NDP
+    on a prefix announced by the router as not on-link.
+  </t>
+  <figure anchor='topology'><name>Topology</name>
+  <artwork><![CDATA[
+           +---------------+
+           |               |
+           |   ROUTER      |
+           |               |
+           +--+-------+----+
+              |       |
+              |  (  ) |
+              (       |  )
+            ( |       |   )
+         (    |       |    )
+       (      |       |     )
+      ((      |       |      )
+      (     LAYER-2 NETWORK   )
+      (       |       |       )
+      (       |       |        )
+       (      |       |       )
+         (    |       |      )
+          (   |       |    ))
+            ( |       |  )
+              | ( ( ) )
++--------+    |       | +--------+
+|        |    |       | |        |
+|        |    |       | |        |
+|  H1    +----+       +-+ H2     |
+|        |              |        |
++--------+              +--------+
+
+]]></artwork>
+
+   </figure>
+  <t>
+    There are three types of NS that the proxy can get:
+  </t>
+  <ol>
+    <li>NS lookup: Multicast, sent from the node's LLA to the SNMA</li>
+    <li>NS NUD: Unicast, sent from the node's LLA to the target</li>
+    <li>NS DAD: Multicast, sent from the unspecified address to the SNMA</li>
+  </ol>
+  <t>
+    NS DAD are ignored by the Proxy (passed to the router). Assuming the physical or logical topology does not provide layer-2 connectivity
+    between hosts, another type of proxy (DAD-proxy, specified in <xref target="RFC6957"/> is required to detect and handle duplications.
+  </t>
+  <t>
+    NS Lookup and NS NUD are responded unconditionally by the proxy. The response always carries the Router MAC in
+    a TLLA option. In case the entry is not in router's ND cache, and upon receiving data packets from the host,
+    the router will initiate address resolution before forwarding. The end result is going to be
+    identical to a host implementing "not on-link" behavior. This flow is illustrated in <xref target='NSflow'/>.
+  </t>
+<!--
+
+1) first hop switch: may turn the NS multicast to MAC unicast to the router or filter broadcasts so they do not reach other clients
+2) if not: what if the target is onlink?
+   eg what if a DAD was received earlier from the target?
+ -  to favor the on-link guy, set the O flag to 0
+ -  to take over wait and then send the NA with the O bit to steal the address
+
+ -->
+    <figure anchor='NSflow'><name>NS flow</name>
+  <artwork><![CDATA[
+
+HOST                     PROXY/                   TARGET
+                         ROUTER
+   |NS lookup (target)      |                        |
+   +----------------------->|                        |
+   |                        |                        |
+   |                        |                        |
+   |NA, src=target, TLLA=ROUTER                      |
+   |<-----------------------+                        |
+   |                        |                        |
+   |                        |                        |
+   |data, dst=target        |                        |
+   +----------------------->|                        |
+   |                        | NS lookup (target)     |
+   |                        +----------------------> |
+   |                        | NA, SLLA=target        |
+   |                        |<-----------------------+
+   |                        |                        |
+   |                        | data, dst=target       |
+   |                        +----------------------->|
+   |                        |                        |
+]]></artwork>
+
+    </figure>
+    <t>
+      When the proxy sends the NA, the  R/S/O flags are set as specified below:
+    </t>
+    <ul>
+    <li>S flag should be on (response to a solicitation)</li>
+    <li>O flag should be on (to update sender’s cache, in case the MAC has changed)</li>
+    <li>R flag should be on if and only if the target is the router address, off otherwise. </li>
+  </ul>
+
+</section> <!--Operation-->
+
+   <section  anchor='sec' > <name>Security Considerations</name>
+
+
+   </section><!-- "Security Considerations" -->
+
+   <section > <name>IANA Considerations</name>
+      <t>
+         This specification does not require IANA action.
+      </t>
+   </section>
+
+   <section > <name>Contributors</name>
+
+   </section>
+
+   <section > <name>Acknowledgments</name>
+
+   </section><!-- ack -->
+</middle>
+
+<back>
+
+   <references > <name>Normative References</name>
+      <xi:include href='https://xml2rfc.tools.ietf.org/public/rfc/bibxml/reference.RFC.4861.xml'/> <!-- neighbor Discovery for IP version 6 (IPv6) -->
+      <xi:include href='https://xml2rfc.tools.ietf.org/public/rfc/bibxml/reference.RFC.5942.xml'/> <!-- IPv6 Subnet Model: The Relationship between Links and Subnet Prefixes -->
+      <xi:include href='https://xml2rfc.tools.ietf.org/public/rfc/bibxml/reference.RFC.8200.xml'/> <!-- Internet Protocol, Version 6 (IPv6) Specification -->
+      <xi:include href='https://xml2rfc.tools.ietf.org/public/rfc/bibxml/reference.RFC.8929.xml'/> <!-- backbone router -->
+
+   </references>
+   <references > <name>Informative References</name>
+      <xi:include href='https://xml2rfc.tools.ietf.org/public/rfc/bibxml/reference.RFC.1027.xml'/> <!-- ARP proxy -->
+
+      <xi:include href='https://xml2rfc.tools.ietf.org/public/rfc/bibxml/reference.RFC.4291.xml'/> <!-- IP Version 6 Addressing Architecture -->
+      <xi:include href='https://xml2rfc.tools.ietf.org/public/rfc/bibxml/reference.RFC.4862.xml'/> <!-- IPv6 Stateless address Autoconfiguration -->
+      <xi:include href='https://xml2rfc.tools.ietf.org/public/rfc/bibxml/reference.RFC.4903.xml'/> <!-- IPv6  Multi-link Subnet Issues   -->
+      <xi:include href='https://xml2rfc.tools.ietf.org/public/rfc/bibxml/reference.RFC.4943.xml'/> <!--  IPv6 Neighbor Discovery On-Link Assumption Considered Harmful  -->
+      <xi:include href='https://xml2rfc.tools.ietf.org/public/rfc/bibxml/reference.RFC.5517.xml'/> <!-- Private VLAN  -->
+      <xi:include href='https://xml2rfc.tools.ietf.org/public/rfc/bibxml/reference.RFC.6957.xml'/> <!--  IPv6 DAD proxy -->
+
+      <xi:include href='https://xml2rfc.tools.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-6man-ipv6-over-wireless.xml'/> <!--  rchitecture and Framework for IPv6 over Non-Broadcast Accessy -->
+
+
+
+   </references>
+</back>
+
+</rfc>
